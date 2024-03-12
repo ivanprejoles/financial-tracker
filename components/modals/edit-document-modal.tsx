@@ -27,6 +27,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUpdateModal } from '@/hooks/use-update-document-modal';
 import { Textarea } from '../ui/textarea';
+import { useDocuments } from '@/hooks/use-documents';
+import { HookDocuments } from '@/type';
 
 
 const formSchema = z.object({
@@ -52,9 +54,19 @@ const formSchema = z.object({
 const UpdateDocumentModal = () => {
     const Router = useRouter()
     
-    const { isOpen, onClose, data, itemUpdate, onValueAdd } = useUpdateModal()
+    const { 
+        isOpen, 
+        onClose, 
+        data
+    } = useUpdateModal()
+    
+    const {
+        documents,
+        updateDocument,
+        addBulkDocuments
+    } = useDocuments()
 
-    const [documentValue, setDocumentValue] = useState(0)
+    const [previousValue, setPreviousValue] = useState(0)
     
     const form = useForm({
         resolver: zodResolver(formSchema),
@@ -74,30 +86,86 @@ const UpdateDocumentModal = () => {
     
             //initialize state as item value
             // previous value
-            setDocumentValue(data.initialValue)
+            setPreviousValue(data.initialValue)
         }
     }, [data, form])
     
     const isLoading = form.formState.isSubmitting;
     
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
+        try {
+            values.initialValue = Number(values.initialValue.toFixed(2));
             await axios.patch(`/api/transaction/${data?.id}`, values)
                 .catch((error) => {
                     console.log(error)
                 })
-                .then((result) => {
-
-                    // change the hooks data updatedId and data
-                    
+                .then((response) => {
                     if (data !== undefined) {
-                        itemUpdate(result?.data)
-                        onValueAdd(data?.id, documentValue, values.initialValue, 100)
-
+    
+                        // update document
+                        updateDocument(response?.data)
+    
+                        let depth = response?.data.id
+    
+                        const changedDocuments = documentsValueUpdate(depth, response?.data.initialValue)
+    
+                        DocumentsRequestUpdate(changedDocuments, response?.data.storeId)
                     }
                     form.reset()
                     onClose()
+                    Router.push(`/server/${response?.data.storeId}`)
                 })
+        } catch (error) {
+            console.log(error)
+        }
     }
+
+
+    const documentsValueUpdate = (depth: string, newValue: number) => {
+        // updated documents storage
+        const updatedDocuments:{
+            [key: string]: {
+                rootedValue: number
+            }
+        } = {}
+        // previous 
+        let previousDocumentValue = previousValue;
+        let newDocumentValue = newValue;
+
+        while (depth) {
+            // initialize document
+            let HookDocument = documents[depth]
+
+            //update to 2 decimal
+            updatedDocuments[HookDocument.id] = {
+                rootedValue: Number(( - previousDocumentValue + newDocumentValue + HookDocument.parentValue).toFixed(2))
+            }
+            // if on the root
+            if (depth === 'root') {
+                break;
+            }
+            // change depth down
+            depth = HookDocument.idReference
+        }
+        return updatedDocuments
+    }
+
+    const DocumentsRequestUpdate = async (HookDocument: { [key: string]: { rootedValue: number }}, storeId: string) => {
+        if (Object.keys(HookDocument).length !== 0) {
+
+            await axios.patch('/api/transactions', {values: HookDocument, storeId})
+                .catch((error) => {
+                    console.log(error)
+                })
+                .then((response) => {
+                    const objectValues: HookDocuments[] = Object.values(response?.data)
+
+                    for (const value of objectValues) {
+                        updateDocument(value)
+                    }
+                })
+        }
+    }   
     
     const handleClose = () => {
         form.reset();

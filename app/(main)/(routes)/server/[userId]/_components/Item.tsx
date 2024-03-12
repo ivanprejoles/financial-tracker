@@ -7,8 +7,10 @@ import {
     DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDocuments } from "@/hooks/use-documents";
 
 import { cn } from "@/lib/utils";
+import { HookDocuments } from "@/type";
 import axios from "axios";
 
 import {
@@ -32,8 +34,9 @@ interface ItemProps {
     active?: boolean,
     expanded?: boolean,
     isSearch?: boolean,
-    onExpand?: () => void,
     onClick: () => void,
+    onExpand?: () => void,
+    onUpdate?: () => void,
     onArchive?: () => void,
     onDelete?: () => void,
     icon: LucideIcon,
@@ -49,12 +52,18 @@ const Item = ({
     active,
     expanded,
     isSearch,
-    onExpand,
     onClick,
+    onExpand,
+    onUpdate,
     onArchive,
     onDelete,
     icon: Icon
 }: ItemProps) => {
+
+    const {
+        addBulkDocuments,
+        addBulkDocumentArrays
+    } = useDocuments()
 
     const handleExpand = (
         event: React.MouseEvent<HTMLDivElement, MouseEvent>
@@ -65,38 +74,50 @@ const Item = ({
 
     const Router = useRouter()
     
-    const onRedirect = () => {
-        Router.push(`/server/${storeId}/document/${id}`)
-    }
 
+    // create new data
     const onCreate = async (
         event: React.MouseEvent<HTMLDivElement, MouseEvent>
     ) => {
         event.stopPropagation()
 
         if (!id) return
-        
-        if (expanded) {
-            onExpand?.()
-        }
 
         await axios.post('/api/transaction', { idReference: id, storeId})
             .catch((error) => {
                 console.log(error)
             })
-            .then(() => {
-                onExpand?.()
-                //router push for next document
+            .then((response) => {
+                
+                if (response?.data) {
+                    addToDocumentHook(response?.data)
+                }
+                
+                if (!expanded) {
+                    onExpand?.()
+                }
             })
     }
 
-    const ChevronIcon = expanded ? ChevronDown : ChevronRight;
+    // add to hook document
+    const addToDocumentHook = (document: HookDocuments) => {
+        const typedDocument: { [key:string]: HookDocuments} = {
+            [document.id] : document
+        }
+        addBulkDocuments(typedDocument)
+        addToDocumentChildrenHook(document.idReference ,document.id)
+    }
+    // add to hook document children array 
+    const addToDocumentChildrenHook = (documentId: string, childrenId: string) => {
+        addBulkDocumentArrays(documentId, [childrenId])
+    }
 
+    const ChevronIcon = expanded ? ChevronDown : ChevronRight;
     
     
     return (  
         <div
-            onClick={() => {(!!id) ? onRedirect() : onClick()}}
+            onClick={onClick}
             role="button"
             style={{
                 paddingLeft: level ? `${(level * 12) + 12}px` : '12px'
@@ -163,7 +184,7 @@ const Item = ({
                             side="right"
                             forceMount
                         >
-                            <DropdownMenuItem onClick={onClick}>
+                            <DropdownMenuItem onClick={onUpdate}>
                                 Update
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={onArchive}>

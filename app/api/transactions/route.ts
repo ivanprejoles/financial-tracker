@@ -14,7 +14,7 @@ export async function POST(req: Params) {
       return new NextResponse('Unauthorized', {status: 401})
     }
   
-    let transactions = await db.transactions.findMany({
+    let transactions:any = await db.transactions.findMany({
       where: {
           idReference,
           storeId,
@@ -29,6 +29,15 @@ export async function POST(req: Params) {
           createdAt: 'asc'
       }, 
     })
+    
+    Object.keys(transactions).forEach((key:any) => {
+        transactions[key] = {
+          ...transactions[key],
+          createdAt: transactions[key].createdAt.toISOString(),
+          updatedAt: transactions[key].createdAt.toISOString(),
+          childrenKey: [],
+        }
+    });
   
     return NextResponse.json(transactions)
 
@@ -51,7 +60,7 @@ export async function PATCH(req: Request) {
 
     const profile = await currentProfile()
 
-    const transactions = await db.$transaction(
+    const transactions: any = await db.$transaction(
       Object.keys(values).map((item) => db.transactions.update({
         where: {
           id: item,
@@ -59,13 +68,20 @@ export async function PATCH(req: Request) {
           storeId
         },
         data: {
-          initialValue: values[item].itemValue,
-          parentValue: values[item].parentValue
+          parentValue: values[item].rootedValue
         }
       }))
     )
-    console.log(transactions)
-    console.log('All items updated successfully.');
+
+    Object.keys(transactions).forEach((key:any) => {
+      transactions[key] = {
+        ...transactions[key],
+        createdAt: transactions[key].createdAt.toISOString(),
+        updatedAt: transactions[key].createdAt.toISOString(),
+        childrenKey: []
+      }
+    });
+
     return NextResponse.json(transactions)
   } catch (error) {
     console.log('[SERVER ERROR]', error);

@@ -9,114 +9,162 @@ import { cn } from "@/lib/utils";
 import { FileIcon} from "lucide-react";
 import { useSwitch } from "@/hooks/use-switch";
 import { useUpdateModal } from "@/hooks/use-update-document-modal";
+import { useDocuments } from "@/hooks/use-documents";
+import { HookDocuments } from "@/type";
 
 interface ItemListProps {
     parentReference?: string
+    storeId: string,
     level?: number,
-    storeId?: string,
-    onUpdate?: (id: string, previousVal: number, newVal: number) => void,
-    onArchive?: (listing: Transactions) => void,
-    onDelete?: (listing: Transactions) => void,
+    onClick?: (id: string, previousVal: number, newVal: number) => void,
+    onArchive?: (listing: HookDocuments) => void,
+    onDelete?: (listing: HookDocuments) => void,
 }
 
 const ItemList = ({
-    parentReference,
+    parentReference = '',
     level = 0,
     storeId,
-    onUpdate,
-    onArchive,
-    onDelete
 }: ItemListProps) => {
 
+    // IMPORT AREA
     const Params = useParams()
     const Router = useRouter()
-
-    const {isUpdated} = useSwitch()
-    const {updatedId, onOpen, onValueAdd, changedValue,} = useUpdateModal()
+    const {onOpen} = useUpdateModal()
+    const {
+        documents, 
+        addBulkDocuments,
+        addBulkDocumentArrays,
+        updateDocument
+    } = useDocuments()
     
-    const [isInitial, setIsInitial] = useState(true)
+    // STATE AND VARIABLE AREA
     const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-    const [itemListings, setItemListings] = useState<Transactions[]>([])  
-
-    useEffect(() => {
-        const readyToUpdate = Object.values(changedValue).find( item => item.level === 0) 
-        if (readyToUpdate) {
-            valueUpdateAxios()
-        }
-    }, [changedValue])
-
-    useEffect(() => {
-        if (Object.keys(changedValue).length !== 0 && updatedId) {
-            itemListings.forEach(item => {
-                if (item.id === updatedId) {
-                    const {itemValue, parentValue} = changedValue[item.id]
-                    onValueAdd(item.id, parentValue, (-itemValue + parentValue) + item.parentValue, level)
-                    if (level !== 0) {
-                        onUpdate?.(item.idReference, item.parentValue, (-itemValue + parentValue) + item.parentValue)
-                    } else {
-                        window.location.reload()
-                    }              
-                }
-            })  
-        } 
-    }, [updatedId, level])
+    let itemListings:HookDocuments[]|undefined;
     
-    // item list drilling
-    const valueUpdate = (id: string, previousVal: number, newVal: number) => {
-
-        const itemListing = itemListings.find(item => item.id === id)
-
-        if (itemListing) {  
+    itemListings= documents[parentReference]?.childrenKey
+    ?.filter((key) => documents[key]?.isDeleted === false && documents[key]?.isArchive === false)
+    ?.map((key) => documents[key]);
 
 
-            onValueAdd(itemListing.id, itemListing.initialValue, (- previousVal + newVal) + itemListing.parentValue, level)
-
-            if (level !== 0) {
-                onUpdate?.(itemListing.idReference, itemListing.parentValue, (- previousVal + newVal) + itemListing.parentValue)
-                // to reset updatedId to use item update item again for useeffect dependency
-            }
+    // USE EFFECT AREA
+    // get all data by reference to documents
+    useEffect(() => {
+        // init of data wrapping
+        const data: { [key: string]: string|undefined} = {
+            ['storeId']: storeId,
+            ['idReference']: parentReference
         }
-    }
 
-    //archive
-    const documentArchive = async (document: Transactions) => {
+        // if parent reference is first or null
+        if (parentReference) {
+            data['idReference'] = parentReference;
+        }
 
-        await axios.patch('/api/archive', {storeId, id: document.id, isArchive: !document.isArchive})
-                    .catch((error) => {
-                        console.log(error)
-                    })
-                    .then((response) => {
-                        //refresh page
-                        window.location.reload()
-                    })
-    }
-
-    //delete
-    const documentDelete = async (document: Transactions) => {
-
-        await axios.patch('/api/trash', {storeId, id: document.id, isDeleted: !document.isDeleted})
-                    .catch((error) => {
-                        console.log(error)
-                    })
-                    .then((response) => {
-                        //refresh page in the method
-                        onUpdate?.(document.idReference, document.parentValue, (-document.initialValue + 0) + document.parentValue)
-                    })
-    }
-    
-    const valueUpdateAxios = async () => {
-        if (level === 0) {
-            await axios.patch('/api/transactions', {values:changedValue, storeId})
+        //api request all data
+        const getDocumentsFromDb = async () => {
+            await axios.post('/api/transactions', data)
                 .catch((error) => {
-                    return console.log(error)
+                    console.log(error)
                 })
                 .then((response) => {
-                    console.log(response?.data)
-                    return window.location.reload()
+                    //add to document as bulk
+                    const objectWithIdAsKeys = Object.fromEntries(
+                        response?.data.map((document: HookDocuments) => [document.id, document])
+                    );
+                    addToDocumentsHook(objectWithIdAsKeys)
+                    //add to documents item's key reference as array
+                    const documentsId = Object.keys(objectWithIdAsKeys)
+                    addToDocumentChildrenHook(documentsId)
                 })
         }
+        // starts here to know if first getting of document
+        if (documents[parentReference] && documents[parentReference].childrenKey.length === 0) {
+            getDocumentsFromDb()
+        }
+    }, []);
+
+
+    // EVENT AREA
+    // add to ducment hook
+    const addToDocumentsHook = (documents: { [key:string]: HookDocuments}) => {
+        addBulkDocuments(documents)
+    };
+
+    // add to document hooks array
+    const addToDocumentChildrenHook = (childrenId: string[]) => {
+        addBulkDocumentArrays(parentReference, childrenId)
+    };
+
+    // archive document
+    const documentArchive = async (
+        document: HookDocuments
+    ) => {
+
+        await axios.patch('/api/archive', {
+            storeId, 
+            id: document.id, 
+            isArchive: !document.isArchive
+        })
+        .catch((error) => {
+            console.log(error)
+        })
+        .then((response) => {
+            const objectValue: HookDocuments = response?.data
+            updateDocument(objectValue)
+        })
     }
-    
+
+    // delete document
+    const documentDelete = async (
+        document: HookDocuments
+    ) => {
+
+        const changedDocument = onTrash(document, true)
+
+        await axios.patch('/api/trash', {
+            storeId, 
+            id: document.id, 
+            isDeleted: !document.isDeleted,
+            documents: changedDocument          
+        })
+        .catch((error) => {
+            console.log(error)
+        })
+        .then((response) => {
+            const hookDocuments: HookDocuments[] = Object.values(response?.data)
+            for (let value of hookDocuments) {
+                updateDocument(value)
+            }
+        })
+    }
+
+    const onTrash = (
+        document: HookDocuments, 
+        isDeleted: boolean,
+    ) => {
+        const updatedDocuments: {
+            [key: string] : {
+                rootedValue: number
+            }
+        } = {}
+        let depth = document.idReference
+        let fixedRootedValue = document.parentValue
+        while (depth) {
+            let changingDocument = documents[depth]
+            updatedDocuments[depth] = {
+                rootedValue: (isDeleted) 
+                                    ? (changingDocument.parentValue - fixedRootedValue)
+                                    : (changingDocument.parentValue + fixedRootedValue)
+            }
+            if (depth === 'root' ) {
+                break;
+            }
+            depth = changingDocument.idReference
+        }
+        return updatedDocuments
+    }
+
     // item list modal
     const onExpand = (documentId: string) => {
         setExpanded(prevExpanded => ({
@@ -125,52 +173,19 @@ const ItemList = ({
         }))
     }
         
-    // useeffect for getting all data or adding an item
-    useEffect(() => {
-
-        // getItems if initially opened
-        const getItems = async () => {
-            await axios.post('/api/transactions', {idReference: parentReference, storeId})
-                .catch((error) => {
-                    return console.log(error)
-                })  
-                .then((response) => {
-                    return setItemListings(response?.data)
-                })
-        }
-
-        // addItem if not parent
-        const addItem = async () => {
-            await axios.post('/api/transaction', {storeId})
-                .catch((error) => {
-                    console.log(error)
-                })
-                .then((response) => {
-                    setItemListings(Previous => [...Previous, response?.data])
-                })
-        }
-
-        if (isInitial) {
-            getItems()
-            setIsInitial(false)
-        } else {
-            if (!parentReference) addItem()
-        }
-        
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [parentReference, storeId, isUpdated])
-
-
-
-
     if (itemListings === undefined) {
         return (
-            <>
-               <Item.Skeleton level={level} />
-               <Item.Skeleton level={level} />
-            </>
-        )
-    }
+          <>
+            <Item.Skeleton level={level} />
+            {level === 0 && (
+              <>
+                <Item.Skeleton level={level} />
+                <Item.Skeleton level={level} />
+              </>
+            )}
+          </>
+        );
+    };
 
     return ( 
         <>
@@ -196,10 +211,14 @@ const ItemList = ({
                         active={Params.documentId === listing.id}
                         expanded={expanded[listing.id]}
 
-                        onClick={() => onOpen(listing)}
-                        onExpand={() => onExpand(listing.id)}
                         onArchive={() => documentArchive(listing)}
                         onDelete={() => documentDelete(listing)}
+
+                        onUpdate={() => onOpen(listing)}
+                        onExpand={() => onExpand(listing.id)}
+                        onClick={() => {
+                            Router.push(`/server/${storeId}/document/${listing.id}`)
+                        }}
 
                         icon={FileIcon}
                         documentIcon={listing.parentValue}
@@ -210,8 +229,6 @@ const ItemList = ({
                             parentReference={listing.id}
                             level={level + 1}
                             storeId={storeId}
-
-                            onUpdate={(id, previousVal, newVal) => valueUpdate(id, previousVal, newVal)}
                         />
                     )}
                 </div>
