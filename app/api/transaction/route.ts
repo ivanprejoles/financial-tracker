@@ -11,14 +11,21 @@ export async function POST (req: Request) {
             return new NextResponse('Unauthorized', {status: 401})
         }
 
-        const transaction = await db.transactions.create({
+        let transaction:any = await db.transactions.create({
             data: {
                 storeId,
                 profileId: profile.id,
                 idReference
             }
-
         })
+
+        transaction = {
+            ...transaction,
+            createdAt: transaction.createdAt.toISOString(),
+            updatedAt: transaction.updatedAt.toISOString(),
+            childrenKey: []
+        }
+        
         return NextResponse.json(transaction)
 
     } catch (error) {

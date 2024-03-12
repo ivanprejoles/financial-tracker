@@ -6,13 +6,16 @@ import ItemList from "./ItemList";
 import { cn } from "@/lib/utils";
 import { Archive, ChevronsLeft, MenuIcon, PlusCircle, Search, Trash } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useRouter } from "next/router";
 import React, { ElementRef, useEffect, useRef, useState } from "react";
 import Item from './Item';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import axios from 'axios';
-import { useSwitch } from '@/hooks/use-switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useDocuments } from '@/hooks/use-documents';
+import { HookDocuments } from '@/type';
+import { TrashBox } from './Storage.tsx/TrashBox';
+import { ArchiveBox } from './Storage.tsx/ArchiveBox';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface SidebarNavigationProps {
     userId: string
@@ -22,16 +25,27 @@ const SidebarNavigation = ({
     userId
 } : SidebarNavigationProps) => {
 
+    // IMPORT AREA
+    const {
+        addBulkDocuments,
+        addBulkDocumentArrays
+    } = useDocuments()
+    
+    // STATES AND VARIABLE AREA
     const pathname = usePathname()
     const isMobile = useMediaQuery('(max-width: 768px)')
-    // const profile = await currentProfile()
     const isResizingRef = useRef(false)
     const sidebarRef = useRef<ElementRef<'aside'>>(null)
     const navbarRef = useRef<ElementRef<'div'>>(null)
+    const [isMounted, setIsMounted] = useState(false)
     const [isResetting, setIsResetting] = useState(false)
     const [isCollapsed, setIsCollapsed] = useState(isMobile)
 
-    const {onUpdate} = useSwitch()
+
+    // USE EFFECT AREA
+    useEffect(() => {
+        setIsMounted(true)
+    }, [])
 
     useEffect(() => {
         if (isMobile) {
@@ -47,6 +61,7 @@ const SidebarNavigation = ({
         }
     }, [pathname, isMobile])
 
+    // MOUSE EVENT AREA
     const handleMouseDown = (
         event: React.MouseEvent<HTMLDivElement, MouseEvent>
     ) =>  {
@@ -111,7 +126,26 @@ const SidebarNavigation = ({
     }
 
     const handleCreate = async () => {
-        onUpdate()
+        await axios.post('/api/transaction', {storeId: userId})
+            .catch((error) => {
+                console.log(error)
+            })
+            .then((response) => {
+                if (response?.data) {
+                    const typedDocument: { [key:string]: HookDocuments} = {
+                        [response.data.id] : response.data
+                    }
+
+                    addBulkDocuments(typedDocument)
+                    addBulkDocumentArrays('', [response.data.id])
+                }
+            })
+    }
+
+    if (!isMounted) {
+        return (
+            <Skeleton className="h-full relative w-60 rounded-xl mt-4"/>
+        )
     }
     
     return (
@@ -148,6 +182,7 @@ const SidebarNavigation = ({
                     <ScrollArea className="flex-1 w-full overflow-y-auto">
                         <ItemList storeId={userId}/>
                     </ScrollArea>
+                    {/* ARCHIVE */}
                     <Popover>
                         <PopoverTrigger className='w-full mt-4'>
                             <Item
@@ -160,9 +195,10 @@ const SidebarNavigation = ({
                             className='p-0 w-72'
                             side={isMobile ? 'bottom' : 'right'}
                         >
-                            <p>Archive</p>
+                            <ArchiveBox storeId={userId} />
                         </PopoverContent>
                     </Popover>
+                    {/* TRASH */}
                     <Popover>
                         <PopoverTrigger className='w-full mt-4'>
                             <Item
@@ -175,7 +211,7 @@ const SidebarNavigation = ({
                             className='p-0 w-72'
                             side={isMobile ? 'bottom' : 'right'}
                         >
-                            <p>Trash can</p>
+                            <TrashBox storeId={userId} />
                         </PopoverContent>
                     </Popover>
                 </div>

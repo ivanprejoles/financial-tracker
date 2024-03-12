@@ -18,7 +18,7 @@ export async function PATCH (
             return new NextResponse('Unauthorized', {status: 401})
         }
     
-        let transaction = await db.transactions.update({
+        let transaction: any = await db.transactions.update({
             where: {
                 storeId,
                 id,
@@ -28,6 +28,13 @@ export async function PATCH (
                 isArchive
             }
         })
+
+        transaction = {
+            ...transaction,
+            createdAt: transaction.createdAt.toISOString(),
+            updatedAt: transaction.updatedAt.toISOString(),
+            childrenKey: []
+        }
     
         if (transaction) {
             return NextResponse.json(transaction)   
@@ -36,5 +43,45 @@ export async function PATCH (
     } catch (error) {
         console.log("[DOCUMENT ARCHIVE]", error)
         return new NextResponse("Internal Error", {status:500})
+    }
+}
+
+export async function POST (req: Request) {
+    try {
+        const profile = await currentProfile()
+
+        const {
+            storeId
+        } = await req.json()
+
+        if (!profile) {
+            return new NextResponse('Unauthorized', {status: 401})
+        }
+
+        let archive: any = await db.transactions.findMany({
+            where: {
+                storeId,
+                isArchive: true
+                
+            },
+            orderBy: {
+                createdAt: 'asc'
+            }
+        })
+
+        Object.keys(archive).forEach((key: any) => {
+            archive[key] = {
+                ...archive[key],
+                createdAt: archive[key].createdAt.toISOString(),
+                updatedAt: archive[key].updatedAt.toISOString(),
+                childrenKey: []
+            }
+        })
+
+        return NextResponse.json(archive)
+
+    } catch (error) {
+        console.log("[ARCHIVE GET]", error)
+        return new NextResponse('Internal Error', {status: 500})
     }
 }

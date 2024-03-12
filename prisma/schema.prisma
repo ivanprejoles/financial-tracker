@@ -6,42 +6,39 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
-  relationMode = "prisma"
 }
 
 model Profile {
-  id String @id @default(uuid())
+  id String @id @default(auto()) @map("_id") @db.ObjectId
   userId String @unique
+  email String @unique
   name String
-  imageUrl String @db.Text
-  email String @db.Text
+  imageUrl String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   store Store[]
   transactions Transactions[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 model Store {
-  id String @id @default(uuid())
-  name String @db.Text
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  name String
 
-  profileId String
+  profileId String @db.ObjectId
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  transactions Transactions[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([profileId])
+  transactions Transactions[]
 }
 
 model Transactions {
-  id String @id @unique @default(uuid())
+  id String @id @default(auto()) @map("_id") @db.ObjectId
   idReference String @default("")
 
   isArchive Boolean @default(false)
@@ -50,19 +47,16 @@ model Transactions {
   initialValue Float @default(0)
   parentValue Float @default(0)
   
-  title String @db.Text @default("Untitled")
-  description String @db.MediumText @default("")
+  title String @default("Untitled")
+  description String @default("")
 
-  storeId String
+  storeId String @db.ObjectId
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
-  profileId String
+  profileId String @db.ObjectId
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@index([storeId])
-  @@index([profileId])
 }
 
