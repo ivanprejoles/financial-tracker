@@ -3,7 +3,7 @@ Tracks users financial with dashboard.
 
 <br>
 
-![Image of financial tracker.](/assets/images/image.png)
+![Image of financial tracker.](/assets/image/image.png)
 
 <br>
 <br>
