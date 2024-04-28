@@ -11,4 +11,4 @@ export const useSwitch = create<SwitchStore>((set) => ({
         isUpdated: !state.isUpdated
     }))
 }))
-
+    

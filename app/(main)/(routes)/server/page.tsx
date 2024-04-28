@@ -16,7 +16,7 @@ const ServerPage =async () => {
     })
 
     if (server) {
-        Router.push(`/server/${server.id}`)
+        Router.push(`/server/$s{server.id}`)
     }
 
     return <InitialModal />
