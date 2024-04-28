@@ -2,10 +2,11 @@
 
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
-import { Popover, PopoverContent } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useCreateModal } from "@/hooks/use-create-store";
+import { useDocuments } from "@/hooks/use-documents";
 import { cn } from "@/lib/utils";
-import { PopoverTrigger } from "@radix-ui/react-popover";
+// import { PopoverTrigger } from "@radix-ui/react-popover";
 import { Check, ChevronsUpDown, PlusCircle, Store as StoreIcon } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -23,6 +24,9 @@ const ItemSwitcher = ({ className, items = []} : StoreSwitcherProps ) => {
     const [open, setOpen] = useState(false)
 
     const {onOpen} = useCreateModal()
+    const {
+        resetDocuments
+    } = useDocuments()
 
     const formattedItems = items.map((item) => ({
         label: item.name,
@@ -32,8 +36,11 @@ const ItemSwitcher = ({ className, items = []} : StoreSwitcherProps ) => {
     const currentStore = formattedItems.find((item) => item.value === Params.userId)
 
     const onStoreSelect = (store: { value: string, label: string }) => {
+        console.log('switcher')
         setOpen(false)
         Router.push(`/server/${store.value}`)
+        resetDocuments()
+
     }
 
     

@@ -52,6 +52,7 @@ const CreateStoreModal = () => {
                 .then((result) => {
                     form.reset()
                     window.location.reload()
+                    console.log('create store')
                     Router.push(`/server/${result.data.id}`)
                 })
         } catch (error) {

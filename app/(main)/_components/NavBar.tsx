@@ -16,7 +16,7 @@ const NavBar = async () => {
 
     const servers = await db.store.findMany({
         where: {
-            profileId: profile.id
+        profileId: profile.id
         }
     })
 
